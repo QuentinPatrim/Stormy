@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence, Variants } from "framer-motion";
+import Image from "next/image";
 import { 
   AlertCircle, Clock, CheckCircle2, Wrench, FileText, Search, Plus, 
   Building2, Calendar, Loader2, ArchiveRestore, BellRing
@@ -140,47 +141,59 @@ export default function NexusDashboard() {
     <div className="min-h-screen bg-[#F8FAFC] text-slate-900 font-sans pb-20 selection:bg-blue-100">
       <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden"><div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-blue-300/20 blur-[120px] rounded-full" /><div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-purple-300/20 blur-[120px] rounded-full" /></div>
       
-      <div className="relative z-10 max-w-[1600px] mx-auto px-10 py-16">
+      <div className="relative z-10 max-w-[1600px] mx-auto px-15 py-21">
         <header className="flex flex-col md:flex-row md:items-center justify-between gap-10 mb-16">
-          <div>
-            <h1 className="text-6xl font-black tracking-tighter text-slate-900 mb-3">Stormy :)</h1>
-            <p className="text-xl text-slate-500 font-bold">Plateforme de gestion opérationnelle</p>
+          <div className="flex items-center gap-10">
+            {/* LOGO GROSSI ICI (w-40 h-40) */}
+            <div className="relative w-40 h-40 drop-shadow-2xl">
+              <Image 
+                src="/logo.png" 
+                alt="Stormy Logo" 
+                fill 
+                className="object-contain"
+                priority
+              />
+            </div>
+            <div>
+              <h1 className="text-8xl font-black tracking-tighter text-slate-900 mb-2">Stormy</h1>
+              <p className="text-2xl text-slate-500 font-bold">Plateforme de gestion de sinistre</p>
+            </div>
           </div>
           <div className="flex items-center gap-6">
             <div className="relative group hidden sm:block">
               <Search className="absolute left-5 top-1/2 -translate-y-1/2 w-6 h-6 text-slate-400 group-focus-within:text-blue-600 transition-colors" />
               <input type="text" placeholder="Rechercher..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-96 bg-white border-2 border-slate-200 rounded-[2rem] py-5 pl-14 pr-6 text-lg font-bold text-slate-900 shadow-sm focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all" />
             </div>
-            <button onClick={() => setIsFormOpen(true)} className="bg-slate-900 text-white hover:bg-slate-800 px-10 py-5 rounded-[2rem] text-lg font-black tracking-wide transition-all flex items-center gap-3 shadow-xl hover:shadow-2xl active:scale-95">
-              <Plus className="w-6 h-6 stroke-[3]" /> <span>Nouveau</span>
+            <button onClick={() => setIsFormOpen(true)} className="bg-slate-900 text-white hover:bg-slate-800 px-12 py-6 rounded-[2rem] text-xl font-black tracking-wide transition-all flex items-center gap-4 shadow-xl hover:shadow-2xl active:scale-95">
+              <Plus className="w-7 h-7 stroke-[3]" /> <span>Nouveau</span>
             </button>
           </div>
         </header>
 
-        <div className="flex items-center gap-3 mb-16 bg-slate-200/50 w-fit p-2 rounded-[2rem] border border-slate-200 shadow-inner">
-          <button onClick={() => setActiveTab("Actifs")} className={`px-10 py-4 rounded-[1.5rem] text-lg font-black transition-all ${activeTab === "Actifs" ? "bg-white text-slate-900 shadow-md" : "text-slate-500 hover:text-slate-800"}`}>Dossiers en cours</button>
-          <button onClick={() => setActiveTab("Archives")} className={`px-10 py-4 rounded-[1.5rem] text-lg font-black transition-all flex items-center gap-3 ${activeTab === "Archives" ? "bg-white text-slate-900 shadow-md" : "text-slate-500 hover:text-slate-800"}`}><ArchiveRestore className="w-6 h-6" /> Archives</button>
+        <div className="flex items-center gap-4 mb-16 bg-slate-200/50 w-fit p-2.5 rounded-[2rem] border border-slate-200 shadow-inner">
+          <button onClick={() => setActiveTab("Actifs")} className={`px-12 py-5 rounded-[1.5rem] text-xl font-black transition-all ${activeTab === "Actifs" ? "bg-white text-slate-900 shadow-md" : "text-slate-500 hover:text-slate-800"}`}>Dossiers en cours</button>
+          <button onClick={() => setActiveTab("Archives")} className={`px-12 py-5 rounded-[1.5rem] text-xl font-black transition-all flex items-center gap-4 ${activeTab === "Archives" ? "bg-white text-slate-900 shadow-md" : "text-slate-500 hover:text-slate-800"}`}><ArchiveRestore className="w-7 h-7" /> Archives</button>
         </div>
 
         {isLoading ? (
-          <div className="flex flex-col items-center justify-center py-40"><Loader2 className="w-12 h-12 text-blue-600 animate-spin mb-6" /><p className="text-2xl text-slate-500 font-black">Chargement des données...</p></div>
+          <div className="flex flex-col items-center justify-center py-40"><Loader2 className="w-16 h-16 text-blue-600 animate-spin mb-8" /><p className="text-3xl text-slate-500 font-black">Chargement des dossiers...</p></div>
         ) : filteredClaims.length === 0 ? (
-          <div className="text-center py-32 bg-white border-4 border-dashed border-slate-200 rounded-[3rem] text-2xl text-slate-400 font-bold">Aucun sinistre trouvé.</div>
+          <div className="text-center py-32 bg-white border-4 border-dashed border-slate-200 rounded-[3rem] text-3xl text-slate-400 font-bold">Aucun sinistre trouvé.</div>
         ) : activeTab === "Archives" ? (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-10"><AnimatePresence>{filteredClaims.map(claim => <ClaimCard key={claim.id} claim={claim} />)}</AnimatePresence></div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12"><AnimatePresence>{filteredClaims.map(claim => <ClaimCard key={claim.id} claim={claim} />)}</AnimatePresence></div>
         ) : (
-          <div className="space-y-24">
+          <div className="space-y-28">
             {STATUS_ORDER.map(status => {
               const claimsInStatus = filteredClaims.filter(c => c.status === status).sort((a, b) => (b.urgency || 1) - (a.urgency || 1)); 
               if (claimsInStatus.length === 0) return null;
               const st = getStatusConfig(status);
               return (
                 <div key={status}>
-                  <div className="flex items-center gap-5 mb-10 pl-2">
-                    <h2 className="text-4xl font-black text-slate-900 tracking-tight">{status}</h2>
-                    <span className={`px-5 py-2 rounded-full ${st.bg} ${st.text} border-2 ${st.border} text-lg font-black shadow-sm`}>{claimsInStatus.length}</span>
+                  <div className="flex items-center gap-6 mb-12 pl-4">
+                    <h2 className="text-5xl font-black text-slate-900 tracking-tight">{status}</h2>
+                    <span className={`px-6 py-2.5 rounded-full ${st.bg} ${st.text} border-2 ${st.border} text-xl font-black shadow-sm`}>{claimsInStatus.length}</span>
                   </div>
-                  <div className="grid grid-cols-1 xl:grid-cols-2 gap-12 items-stretch">
+                  <div className="grid grid-cols-1 xl:grid-cols-2 gap-16 items-stretch">
                     <AnimatePresence>{claimsInStatus.map(claim => <ClaimCard key={claim.id} claim={claim} />)}</AnimatePresence>
                   </div>
                 </div>
