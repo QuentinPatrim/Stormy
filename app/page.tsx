@@ -19,11 +19,13 @@ export interface Claim {
   claim_number: string; owner: string; tenant: string; address: string; damage_nature: string;
   damage_origin: string; craftsman: string | null; quote_amount: number | null;
   documents?: string[]; urgency: number; syndic_name?: string; syndic_contact?: string; syndic_email?: string; tenant_contact?: string; insurer_name?: string;
-  next_reminder_date?: string | null; next_reminder_note?: string | null;
   is_constat_done?: boolean; is_declaration_done?: boolean;
   tenant_email?: string; insurer_phone?: string; insurer_email?: string;
   expert_name?: string; expert_phone?: string; expert_email?: string;
   expertise_date?: string | null; expertise_time?: string | null;
+  
+  // --- SYSTÈME MULTI-RELANCES ---
+  active_reminders?: any[];
   reminder_history?: any[];
 }
 
@@ -40,6 +42,11 @@ const getStatusConfig = (status: ClaimStatus) => {
 };
 
 const itemVariants: Variants = { hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 300, damping: 24 } } };
+
+const getLocalTodayString = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
 
 export default function NexusDashboard() {
   const [activeTab, setActiveTab] = useState<"Actifs" | "Archives">("Actifs");
@@ -70,14 +77,18 @@ export default function NexusDashboard() {
     const st = getStatusConfig(claim.status);
     const StatusIcon = st.icon;
     const currentUrgency = claim.urgency || 1;
-    const today = new Date().toISOString().split('T')[0];
-    const isReminderDue = claim.next_reminder_date && claim.next_reminder_date <= today;
+    
+    const today = getLocalTodayString();
+    const activeReminders = claim.active_reminders || [];
+    // Filtre les relances qui sont échues (date <= aujourd'hui)
+    const dueReminders = activeReminders.filter((r: any) => r.date <= today);
+    const isReminderDue = dueReminders.length > 0;
     
     return (
       <motion.div
         layoutId={claim.id} variants={itemVariants} initial="hidden" animate="show"
         onClick={() => { setSelectedClaim(claim); setIsSheetOpen(true); }}
-        className={`relative group cursor-pointer border-4 shadow-lg rounded-[2.5rem] p-10 transition-all duration-500 flex flex-col justify-between backdrop-blur-sm ${st.cardBase} ${st.cardHover} ${isReminderDue ? 'ring-4 ring-rose-400 ring-offset-4' : ''}`}
+        className={`relative group cursor-pointer border-4 shadow-lg rounded-[2.5rem] p-10 transition-all duration-500 flex flex-col justify-between backdrop-blur-sm ${st.cardBase} ${st.cardHover} ${isReminderDue ? 'ring-4 ring-rose-500 ring-offset-4 bg-rose-50/50' : ''}`}
       >
         <div>
           <div className="flex items-start justify-between mb-10 relative z-10">
@@ -117,22 +128,25 @@ export default function NexusDashboard() {
 
         <div>
           {isReminderDue && (
-            <div className="mb-8 bg-gradient-to-r from-rose-400 to-pink-500 border-2 border-rose-300 rounded-3xl p-6 flex items-start gap-5 shadow-xl shadow-rose-500/20 text-white">
-              <div className="bg-white/20 p-3 rounded-2xl shrink-0 backdrop-blur-md">
-                <BellRing className="w-6 h-6 text-white animate-pulse" />
+            <div className="mb-8 bg-gradient-to-r from-rose-400 to-pink-500 border-2 border-rose-300 rounded-3xl p-6 flex items-start gap-5 shadow-xl shadow-rose-500/20 text-white transform hover:scale-[1.02] transition-transform">
+              <div className="bg-white/20 p-3 rounded-2xl shrink-0 backdrop-blur-md flex flex-col items-center justify-center">
+                <BellRing className="w-6 h-6 text-white animate-pulse mb-1" />
+                <span className="text-xs font-black bg-white/30 px-2 rounded-md">{dueReminders.length}</span>
               </div>
               <div>
-                <p className="text-xs font-black text-rose-100 uppercase tracking-widest mb-1">Relance Prioritaire</p>
-                <p className="text-lg font-bold text-white leading-snug">{claim.next_reminder_note || "Une action immédiate est requise."}</p>
+                <p className="text-xs font-black text-rose-100 uppercase tracking-widest mb-1">
+                  {dueReminders.length > 1 ? "Relances Prioritaires" : "Relance Prioritaire"}
+                </p>
+                <p className="text-lg font-bold text-white leading-snug">{dueReminders[0].note}</p>
               </div>
             </div>
           )}
 
           <div className="pt-8 border-t-4 border-white/40 flex items-center justify-between relative z-10">
             <span className="text-sm font-bold text-indigo-900/60">Dernière maj : {new Date(claim.last_followup_date).toLocaleDateString('fr-FR')}</span>
-            {!isReminderDue && claim.next_reminder_date && (
+            {!isReminderDue && activeReminders.length > 0 && (
               <span className="text-sm font-black text-indigo-700 bg-white/50 border-2 border-white/80 px-4 py-2 rounded-xl shadow-sm">
-                Relance le {new Date(claim.next_reminder_date).toLocaleDateString('fr-FR')}
+                {activeReminders.length} relance(s) en attente
               </span>
             )}
           </div>
@@ -143,7 +157,6 @@ export default function NexusDashboard() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 text-indigo-950 font-sans pb-20 selection:bg-fuchsia-300 selection:text-fuchsia-900 relative">
-      
       <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden opacity-80">
         <div className="absolute top-[-10%] left-[-5%] w-[40%] h-[50%] bg-fuchsia-400/30 blur-[150px] rounded-full mix-blend-multiply animate-pulse duration-[8s]" />
         <div className="absolute top-[20%] right-[-10%] w-[30%] h-[40%] bg-cyan-400/30 blur-[130px] rounded-full mix-blend-multiply" />
@@ -153,7 +166,7 @@ export default function NexusDashboard() {
       <div className="relative z-10 max-w-[1600px] mx-auto px-10 py-16">
         <header className="flex flex-col md:flex-row md:items-center justify-between gap-10 mb-16">
           <div className="flex items-center gap-10 hover:scale-105 transition-transform duration-500 cursor-default">
-            <div className="relative w-40 h-40 drop-shadow-2xl">
+            <div className="relative w-64 h-64 drop-shadow-2xl">
               <Image src="/logo.png" alt="Stormy Logo" fill className="object-contain" priority />
             </div>
             <div>
