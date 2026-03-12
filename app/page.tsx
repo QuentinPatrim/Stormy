@@ -18,12 +18,13 @@ export interface Claim {
   id: string; status: ClaimStatus; last_followup_date: string; incident_date: string;
   claim_number: string; owner: string; tenant: string; address: string; damage_nature: string;
   damage_origin: string; craftsman: string | null; quote_amount: number | null;
-  documents?: string[]; urgency: number; syndic_name?: string; syndic_contact?: string; tenant_contact?: string; insurer_name?: string;
+  documents?: string[]; urgency: number; syndic_name?: string; syndic_contact?: string; syndic_email?: string; tenant_contact?: string; insurer_name?: string;
   next_reminder_date?: string | null; next_reminder_note?: string | null;
   is_constat_done?: boolean; is_declaration_done?: boolean;
   tenant_email?: string; insurer_phone?: string; insurer_email?: string;
   expert_name?: string; expert_phone?: string; expert_email?: string;
-  expertise_date?: string | null;
+  expertise_date?: string | null; expertise_time?: string | null;
+  reminder_history?: any[];
 }
 
 const getStatusConfig = (status: ClaimStatus) => {
@@ -143,7 +144,6 @@ export default function NexusDashboard() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 text-indigo-950 font-sans pb-20 selection:bg-fuchsia-300 selection:text-fuchsia-900 relative">
       
-      {/* HALOS ULTRA-VIBRANTS */}
       <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden opacity-80">
         <div className="absolute top-[-10%] left-[-5%] w-[40%] h-[50%] bg-fuchsia-400/30 blur-[150px] rounded-full mix-blend-multiply animate-pulse duration-[8s]" />
         <div className="absolute top-[20%] right-[-10%] w-[30%] h-[40%] bg-cyan-400/30 blur-[130px] rounded-full mix-blend-multiply" />

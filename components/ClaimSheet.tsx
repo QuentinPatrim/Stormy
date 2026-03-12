@@ -5,7 +5,8 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "
 import { 
   MapPin, User, Building2, Wrench, UploadCloud, FileText, 
   Euro, Loader2, FileImage, Trash2, X, Shield, Phone, Flame, CheckCircle2, BellRing, CalendarClock, Check, Zap,
-  CheckSquare, Square, Mail, Briefcase, CalendarPlus
+  CheckSquare, Square, Mail, Briefcase, CalendarPlus, History, Clock,
+  Calendar
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
@@ -50,14 +51,34 @@ export function ClaimSheet({ claim, isOpen, onClose, onClaimUpdated, onClaimDele
     setLocalData({ ...localData, next_reminder_date: dateString }); handleSave('next_reminder_date', dateString);
   };
 
+  // --- NOUVEAU LOGIQUE D'HISTORIQUE ---
   const markReminderAsDone = async () => {
     setSaveStatus("saving");
     try {
       const today = new Date().toISOString().split('T')[0];
-      const payload = { next_reminder_date: null, next_reminder_note: null, last_followup_date: today };
+      
+      // On crée l'entrée d'historique
+      const newHistoryItem = {
+        note: localData.next_reminder_note || "Action traitée",
+        date: localData.next_reminder_date || today,
+        completed_at: today
+      };
+      
+      const updatedHistory = [...(localData.reminder_history || []), newHistoryItem];
+
+      const payload = { 
+        next_reminder_date: null, 
+        next_reminder_note: null, 
+        last_followup_date: today,
+        reminder_history: updatedHistory
+      };
+      
       await supabase.from('claims').update(payload).eq('id', claim.id);
-      setLocalData({ ...localData, ...payload }); onClaimUpdated({ ...claim, ...payload });
-      setSaveStatus("saved"); setTimeout(() => setSaveStatus("idle"), 2000);
+      setLocalData({ ...localData, ...payload }); 
+      onClaimUpdated({ ...claim, ...payload });
+      
+      setSaveStatus("saved"); 
+      setTimeout(() => setSaveStatus("idle"), 2000);
     } catch (error) { setSaveStatus("idle"); }
   };
 
@@ -93,18 +114,38 @@ export function ClaimSheet({ claim, isOpen, onClose, onClaimUpdated, onClaimDele
     } catch (e) {}
   };
 
-  const getGoogleCalendarUrl = () => {
+  // --- GOOGLE CALENDAR (EXPERTISE AVEC HEURE) ---
+  const getExpertiseCalendarUrl = () => {
     if (!localData.expertise_date) return "#";
-    const dateStr = localData.expertise_date.replace(/-/g, '');
-    const d = new Date(localData.expertise_date); d.setDate(d.getDate() + 1);
-    const nextDayStr = d.toISOString().split('T')[0].replace(/-/g, '');
+    const dateStrRaw = localData.expertise_date.replace(/-/g, '');
     const text = encodeURIComponent(`Expertise Sinistre - ${claim.claim_number}`);
-    const details = encodeURIComponent(`Rendez-vous d'expertise :\n${localData.address || 'Adresse non renseignée'}`);
+    const details = encodeURIComponent(`Rendez-vous d'expertise pour le sinistre situé au :\n${localData.address || 'Adresse non renseignée'}`);
     const location = encodeURIComponent(localData.address || "");
-    return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${text}&dates=${dateStr}/${nextDayStr}&details=${details}&location=${location}`;
+
+    if (localData.expertise_time) {
+      const timeStr = localData.expertise_time.replace(':', '') + '00';
+      const [hours, minutes] = localData.expertise_time.split(':');
+      const endHours = String(parseInt(hours) + 1).padStart(2, '0'); // Rendez-vous de 1h par défaut
+      const endTimeStr = endHours + minutes + '00';
+      return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${text}&dates=${dateStrRaw}T${timeStr}/${dateStrRaw}T${endTimeStr}&details=${details}&location=${location}`;
+    } else {
+      const d = new Date(localData.expertise_date); d.setDate(d.getDate() + 1);
+      const nextDayStr = d.toISOString().split('T')[0].replace(/-/g, '');
+      return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${text}&dates=${dateStrRaw}/${nextDayStr}&details=${details}&location=${location}`;
+    }
   };
 
-  // NOUVEAUX STYLES 100% PEPS ET GLASSMORPHISM
+  // --- GOOGLE CALENDAR (RELANCE ACTION) ---
+  const getReminderCalendarUrl = () => {
+    if (!localData.next_reminder_date) return "#";
+    const dateStrRaw = localData.next_reminder_date.replace(/-/g, '');
+    const d = new Date(localData.next_reminder_date); d.setDate(d.getDate() + 1);
+    const nextDayStr = d.toISOString().split('T')[0].replace(/-/g, '');
+    const text = encodeURIComponent(`Relance Sinistre - ${claim.claim_number}`);
+    const details = encodeURIComponent(`Action requise : ${localData.next_reminder_note || 'Relance du dossier'}`);
+    return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${text}&dates=${dateStrRaw}/${nextDayStr}&details=${details}`;
+  };
+
   const inputClass = "w-full bg-white/30 hover:bg-white/50 focus:bg-white/70 border-2 border-white/40 focus:border-white focus:ring-4 focus:ring-white/20 rounded-2xl px-5 py-3 -ml-5 text-xl font-black text-indigo-950 transition-all outline-none placeholder:text-indigo-950/40";
   const smallInputClass = "w-full bg-white/40 hover:bg-white/60 focus:bg-white/80 border-2 border-white/50 focus:border-white focus:ring-4 focus:ring-white/30 rounded-xl px-4 py-2 -ml-4 text-base font-bold text-indigo-900 transition-all outline-none placeholder:text-indigo-900/40";
   const labelClass = "text-xs font-black uppercase tracking-[0.2em] text-indigo-600/80 mb-3 flex items-center gap-3 pl-1";
@@ -116,7 +157,6 @@ export function ClaimSheet({ claim, isOpen, onClose, onClaimUpdated, onClaimDele
     <Sheet open={isOpen} onOpenChange={onClose}>
       <SheetContent className="!max-w-[90vw] w-full sm:w-[1300px] bg-gradient-to-br from-indigo-50/95 via-fuchsia-50/95 to-cyan-50/95 backdrop-blur-3xl border-l-8 border-white/50 text-indigo-950 p-0 flex flex-col shadow-[-20px_0_100px_rgba(217,70,239,0.15)]">
         
-        {/* HEADER GLASS */}
         <div className="p-12 border-b-4 border-white/40 bg-white/30 shrink-0">
           <SheetHeader>
             <SheetTitle className="sr-only">Gestion Sinistre</SheetTitle>
@@ -167,11 +207,9 @@ export function ClaimSheet({ claim, isOpen, onClose, onClaimUpdated, onClaimDele
           </SheetHeader>
         </div>
 
-        {/* BODY TRANSPARENT */}
         <div className="flex-1 overflow-y-auto p-16">
           <div className="flex flex-col gap-16 max-w-7xl mx-auto">
             
-            {/* CHECKLIST */}
             <div>
               <h3 className="text-lg font-black uppercase tracking-[0.2em] text-emerald-600 mb-6 flex items-center gap-4"><CheckSquare className="w-8 h-8" /> Workflow du dossier</h3>
               <div className="flex flex-wrap gap-6">
@@ -186,36 +224,71 @@ export function ClaimSheet({ claim, isOpen, onClose, onClaimUpdated, onClaimDele
               </div>
             </div>
 
-            {/* RELANCE */}
+            {/* RELANCE & HISTORIQUE (SPLIT) */}
             <div>
-              <h3 className="text-lg font-black uppercase tracking-[0.2em] text-rose-500 mb-6 flex items-center gap-4"><BellRing className="w-8 h-8" /> Action Programmée</h3>
-              <div className="bg-gradient-to-br from-white/60 to-white/30 backdrop-blur-lg border-4 border-white/60 rounded-[3rem] p-12 shadow-xl shadow-indigo-900/5">
-                <div className="flex flex-col lg:flex-row gap-12 items-end">
-                  <div className="flex-1 w-full">
-                    <span className={labelClass}>Consigne de relance</span>
-                    <input name="next_reminder_note" value={localData.next_reminder_note || ""} onChange={handleChange} onBlur={handleBlur} className={inputClass} placeholder="Quelle est la priorité actuelle ?" />
-                  </div>
-                  <div className="w-full lg:w-auto">
-                    <span className={labelClass}>Date prévue</span>
-                    <div className="flex items-center gap-6">
-                      <input type="date" name="next_reminder_date" value={localData.next_reminder_date || ""} onChange={(e) => { handleChange(e); handleSave('next_reminder_date', e.target.value); }} className="bg-white/60 hover:bg-white border-4 border-white/80 rounded-3xl px-8 py-5 text-2xl font-black text-rose-600 outline-none focus:border-rose-400 transition-all cursor-pointer shadow-sm" />
-                      <div className="flex items-center gap-3 bg-white/40 p-3 rounded-3xl border-2 border-white/60">
-                        <button onClick={() => setQuickReminder(3)} className="px-6 py-4 text-lg font-black text-indigo-600 hover:bg-white hover:shadow-md hover:text-rose-500 rounded-2xl transition-all">+3j</button>
-                        <button onClick={() => setQuickReminder(7)} className="px-6 py-4 text-lg font-black text-indigo-600 hover:bg-white hover:shadow-md hover:text-rose-500 rounded-2xl transition-all">+7j</button>
+              <h3 className="text-lg font-black uppercase tracking-[0.2em] text-rose-500 mb-6 flex items-center gap-4"><BellRing className="w-8 h-8" /> Action Programmée & Historique</h3>
+              <div className="bg-gradient-to-br from-white/60 to-white/30 backdrop-blur-lg border-4 border-white/60 rounded-[3rem] p-12 shadow-xl shadow-indigo-900/5 grid grid-cols-1 lg:grid-cols-3 gap-16">
+                
+                {/* Section Programmation (Prend 2 colonnes) */}
+                <div className="col-span-1 lg:col-span-2">
+                  <div className="flex flex-col gap-10">
+                    <div className="flex-1 w-full">
+                      <span className={labelClass}>Consigne de la tâche à venir</span>
+                      <input name="next_reminder_note" value={localData.next_reminder_note || ""} onChange={handleChange} onBlur={handleBlur} className={inputClass} placeholder="Quelle est la priorité actuelle ?" />
+                    </div>
+                    
+                    <div className="w-full">
+                      <span className={labelClass}>Date de rappel prévue</span>
+                      <div className="flex flex-wrap items-center gap-6">
+                        <input type="date" name="next_reminder_date" value={localData.next_reminder_date || ""} onChange={(e) => { handleChange(e); handleSave('next_reminder_date', e.target.value); }} className="bg-white/60 hover:bg-white border-4 border-white/80 rounded-3xl px-8 py-5 text-xl font-black text-rose-600 outline-none focus:border-rose-400 transition-all cursor-pointer shadow-sm" />
+                        <div className="flex items-center gap-3 bg-white/40 p-3 rounded-3xl border-2 border-white/60 shrink-0">
+                          <button onClick={() => setQuickReminder(3)} className="px-6 py-4 text-lg font-black text-indigo-600 hover:bg-white hover:shadow-md hover:text-rose-500 rounded-2xl transition-all">+3j</button>
+                          <button onClick={() => setQuickReminder(7)} className="px-6 py-4 text-lg font-black text-indigo-600 hover:bg-white hover:shadow-md hover:text-rose-500 rounded-2xl transition-all">+7j</button>
+                        </div>
                       </div>
                     </div>
+
+                    {localData.next_reminder_date && (
+                      <div className="pt-8 border-t-4 border-white/40 flex flex-wrap items-center justify-between gap-6">
+                        <div className="flex items-center gap-4">
+                          <a href={getReminderCalendarUrl()} target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 bg-indigo-50/50 hover:bg-white text-indigo-600 px-6 py-4 rounded-2xl border-4 border-indigo-200 text-lg font-black transition-all shadow-sm">
+                            <CalendarPlus className="w-6 h-6" /> Ajouter à l'agenda
+                          </a>
+                        </div>
+                        <button onClick={markReminderAsDone} className="flex items-center gap-4 bg-gradient-to-r from-emerald-400 to-teal-500 hover:from-emerald-500 hover:to-teal-600 text-white px-10 py-5 rounded-3xl text-2xl font-black transition-all shadow-xl shadow-emerald-500/30 active:scale-95">
+                          <Check className="w-8 h-8 stroke-[4]" /> Marquer traitée
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
-                {localData.next_reminder_date && (
-                  <div className="mt-12 pt-10 border-t-4 border-white/40 flex items-center justify-between">
-                    <div className="flex items-center gap-6 text-2xl font-black text-amber-700 bg-amber-200/50 px-8 py-5 rounded-3xl border-4 border-amber-300">
-                      <CalendarClock className="w-8 h-8" /> Prévue le {new Date(localData.next_reminder_date).toLocaleDateString('fr-FR')}
+
+                {/* Section Historique (Frise Chronologique) */}
+                <div className="col-span-1 lg:border-l-4 border-rose-200/50 lg:pl-12 flex flex-col pt-8 lg:pt-0">
+                  <span className="text-sm font-black uppercase tracking-[0.2em] text-rose-400 mb-8 flex items-center gap-3"><History className="w-6 h-6"/> Frise d'actions</span>
+                  
+                  {(!localData.reminder_history || localData.reminder_history.length === 0) ? (
+                    <div className="bg-white/40 p-8 rounded-3xl border-2 border-white/60 text-center flex-1 flex items-center justify-center">
+                      <p className="text-lg font-bold text-indigo-300">Aucune action enregistrée pour le moment.</p>
                     </div>
-                    <button onClick={markReminderAsDone} className="flex items-center gap-4 bg-gradient-to-r from-emerald-400 to-teal-500 hover:from-emerald-500 hover:to-teal-600 text-white px-12 py-5 rounded-3xl text-2xl font-black transition-all shadow-xl shadow-emerald-500/30 active:scale-95">
-                      <Check className="w-8 h-8 stroke-[4]" /> Marquer comme traitée
-                    </button>
-                  </div>
-                )}
+                  ) : (
+                    <div className="space-y-8 border-l-4 border-rose-300/40 pl-8 ml-2 flex-1 max-h-[300px] overflow-y-auto pr-4 custom-scrollbar">
+                      {[...localData.reminder_history].reverse().map((item: any, i: number) => (
+                        <div key={i} className="relative">
+                          <span className="absolute -left-[46px] top-1.5 w-6 h-6 rounded-full bg-gradient-to-br from-rose-400 to-pink-500 ring-4 ring-white/80 shadow-md" />
+                          <div className="bg-white/60 p-5 rounded-2xl border-2 border-white/80 shadow-sm hover:shadow-md transition-shadow">
+                            <p className="text-sm font-black text-rose-500 mb-2 flex justify-between items-center">
+                              {new Date(item.date).toLocaleDateString('fr-FR')} 
+                              <span className="text-emerald-500 bg-emerald-50 px-2 py-1 rounded-lg text-xs flex items-center gap-1"><Check className="w-3 h-3 stroke-[3]"/> Fait</span>
+                            </p>
+                            <p className="text-base font-bold text-indigo-950">{item.note}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
               </div>
             </div>
 
@@ -224,7 +297,6 @@ export function ClaimSheet({ claim, isOpen, onClose, onClaimUpdated, onClaimDele
               <h3 className="text-lg font-black uppercase tracking-[0.2em] text-indigo-600 mb-6 flex items-center gap-4"><FileText className="w-8 h-8" /> Annuaire & Informations</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
                 
-                {/* ADRESSE */}
                 <div className="lg:col-span-4 bg-gradient-to-br from-white/60 to-white/30 backdrop-blur-md border-4 border-white/60 rounded-[3rem] p-12 shadow-xl shadow-indigo-900/5 flex items-start gap-10">
                   <MapPin className="w-12 h-12 text-fuchsia-500 shrink-0 mt-3" />
                   <div className="flex-1">
@@ -233,7 +305,6 @@ export function ClaimSheet({ claim, isOpen, onClose, onClaimUpdated, onClaimDele
                   </div>
                 </div>
 
-                {/* ACTEURS */}
                 <div className="bg-gradient-to-br from-white/60 to-white/30 backdrop-blur-md border-4 border-white/60 rounded-[2.5rem] p-10 shadow-xl shadow-indigo-900/5">
                   <span className={labelClass}><Building2 className="w-6 h-6 text-fuchsia-400"/> Propriétaire</span>
                   <input name="owner" value={localData.owner || ""} onChange={handleChange} onBlur={handleBlur} className={inputClass} placeholder="Nom..." />
@@ -276,23 +347,32 @@ export function ClaimSheet({ claim, isOpen, onClose, onClaimUpdated, onClaimDele
                   </div>
                 </div>
 
-                <div className="lg:col-span-2 bg-gradient-to-br from-cyan-400 to-blue-500 rounded-[3rem] p-12 shadow-2xl shadow-cyan-500/30 text-white relative overflow-hidden">
+                {/* NOUVEAU : DATES ET HEURE D'EXPERTISE */}
+                <div className="lg:col-span-2 bg-gradient-to-br from-cyan-400 to-blue-500 rounded-[3rem] p-12 shadow-2xl shadow-cyan-500/30 text-white relative overflow-hidden flex flex-col justify-between">
                   <div className="absolute top-0 right-0 w-64 h-64 bg-white/20 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
-                  <span className="text-sm font-black uppercase tracking-[0.2em] text-cyan-100 mb-6 flex items-center gap-4 pl-1 relative z-10"><CalendarClock className="w-8 h-8"/> Date d'expertise</span>
-                  <div className="flex flex-col sm:flex-row items-center gap-6 mt-8 relative z-10">
-                    <input 
-                      type="date" name="expertise_date" value={localData.expertise_date || ""} onChange={(e) => { handleChange(e); handleSave('expertise_date', e.target.value); }} 
-                      className="w-full bg-black/20 hover:bg-black/30 border-4 border-white/30 rounded-[2rem] px-8 py-6 text-3xl font-black text-white outline-none cursor-pointer transition-all focus:ring-4 focus:ring-white/20 [color-scheme:dark]" 
-                    />
+                  <span className="text-sm font-black uppercase tracking-[0.2em] text-cyan-100 mb-6 flex items-center gap-4 pl-1 relative z-10"><CalendarClock className="w-8 h-8"/> Programmation de l'expertise</span>
+                  
+                  <div className="flex flex-col gap-6 relative z-10 w-full">
+                    <div className="flex flex-col sm:flex-row gap-4 w-full">
+                      <div className="flex-1 bg-black/20 hover:bg-black/30 border-4 border-white/30 rounded-[2rem] px-6 py-4 flex items-center gap-4 transition-all focus-within:ring-4 focus-within:ring-white/20">
+                        <Calendar className="w-6 h-6 text-cyan-100 shrink-0"/>
+                        <input type="date" name="expertise_date" value={localData.expertise_date || ""} onChange={(e) => { handleChange(e); handleSave('expertise_date', e.target.value); }} className="w-full bg-transparent text-xl font-black text-white outline-none cursor-pointer [color-scheme:dark]" />
+                      </div>
+                      
+                      <div className="sm:w-1/3 bg-black/20 hover:bg-black/30 border-4 border-white/30 rounded-[2rem] px-6 py-4 flex items-center gap-4 transition-all focus-within:ring-4 focus-within:ring-white/20">
+                        <Clock className="w-6 h-6 text-cyan-100 shrink-0"/>
+                        <input type="time" name="expertise_time" value={localData.expertise_time || ""} onChange={(e) => { handleChange(e); handleSave('expertise_time', e.target.value); }} className="w-full bg-transparent text-xl font-black text-white outline-none cursor-pointer [color-scheme:dark]" />
+                      </div>
+                    </div>
+
                     {localData.expertise_date && (
-                      <a href={getGoogleCalendarUrl()} target="_blank" rel="noopener noreferrer" className="w-full sm:w-auto flex items-center justify-center gap-4 bg-white text-cyan-600 hover:bg-cyan-50 px-10 py-6 rounded-[2rem] text-xl font-black transition-all shadow-xl active:scale-95 shrink-0">
-                        <CalendarPlus className="w-8 h-8" /> Agenda
+                      <a href={getExpertiseCalendarUrl()} target="_blank" rel="noopener noreferrer" className="w-full flex items-center justify-center gap-4 bg-white text-cyan-600 hover:bg-cyan-50 px-8 py-5 rounded-[2rem] text-xl font-black transition-all shadow-xl active:scale-95 shrink-0 mt-2">
+                        <CalendarPlus className="w-8 h-8" /> Ajouter à l'agenda
                       </a>
                     )}
                   </div>
                 </div>
 
-                {/* ORIGINE & NATURE */}
                 <div className="lg:col-span-4 bg-gradient-to-br from-amber-200/50 to-orange-200/50 backdrop-blur-md border-4 border-amber-300/50 rounded-[3rem] p-12 shadow-xl shadow-amber-900/5 mt-4">
                   <span className="text-sm font-black uppercase tracking-[0.2em] text-amber-700 mb-6 flex items-center gap-4 pl-1"><Zap className="w-8 h-8"/> Origine du sinistre</span>
                   <input name="damage_origin" value={localData.damage_origin || ""} onChange={handleChange} onBlur={handleBlur} className={`${inputClass} text-3xl text-amber-950 focus:border-amber-400 focus:ring-amber-500/20`} placeholder="Ex: Rupture canalisation..." />
@@ -303,7 +383,6 @@ export function ClaimSheet({ claim, isOpen, onClose, onClaimUpdated, onClaimDele
                   <textarea name="damage_nature" value={localData.damage_nature || ""} onChange={handleChange} onBlur={handleBlur} rows={3} className={`${inputClass} resize-none text-3xl leading-relaxed text-rose-950 focus:border-rose-400 focus:ring-rose-500/20`} placeholder="Description précise..." />
                 </div>
 
-                {/* ARTISAN */}
                 <div className="lg:col-span-4 bg-gradient-to-br from-blue-200/50 to-indigo-200/50 backdrop-blur-md border-4 border-blue-300/50 rounded-[3.5rem] p-16 shadow-xl shadow-blue-900/5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-16">
                   <div className="flex-1 w-full">
                     <span className="text-base font-black uppercase tracking-[0.2em] text-blue-700 mb-6 block pl-1">Artisan mandaté</span>
@@ -320,7 +399,6 @@ export function ClaimSheet({ claim, isOpen, onClose, onClaimUpdated, onClaimDele
               </div>
             </div>
             
-            {/* DOCUMENTS */}
             <div className="pb-10">
               <h3 className="text-lg font-black uppercase tracking-[0.2em] text-fuchsia-500 mb-8 flex items-center gap-4"><UploadCloud className="w-8 h-8" /> Gestion documentaire</h3>
               <label className="group relative bg-white/40 backdrop-blur-md border-[6px] border-dashed border-white/80 hover:border-fuchsia-400 hover:bg-white/60 rounded-[4rem] p-24 text-center transition-all cursor-pointer block overflow-hidden shadow-xl shadow-indigo-900/5">
